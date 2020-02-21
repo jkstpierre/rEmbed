@@ -1,0 +1,3 @@
+# REMBED #
+## Lightweight resource embedder ##
+
