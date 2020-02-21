@@ -1,3 +1,3 @@
 # REMBED #
-## Lightweight resource embedder ##
+## Lightweight Resource Embedder ##
 

@@ -10,18 +10,35 @@
  */
 
 // Includes
-#include <rembed.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 // Defines
-#define _REMBED_RES_SCRIPT_INDEX_   1
-#define _REMBED_EXPECTED_ARGS_      2
+#define _REMBED_DESTINATION_PATH_     1   // Path to the destination .c
+#define _REMBED_RESOURCE_PATH_        2   // Path to the resource
+#define _REMBED_EXPECTED_ARGUMENTS_   3   // Number of expected arguments
 
-// Forward declarations
-static const char* filename_ext(const char* filename);
+char *prepareResourceName(char *path) {
+    char* retVal = path;
+    char* p;
+    for (p = path; *p; p++) {
+        if (*p == '/' || *p == '\\' || *p == ':') {
+            retVal = p;
+        }
+        else {
+          char c = toupper(*p);
+          if (c != *p)
+            *p = c;
+          else if (*p == '.' || *p == '-')
+            *p = '_';
+        }
+    }
+    return retVal;
+}
 
+// Main
 /**
  * @brief Program entry point
  * 
@@ -30,46 +47,37 @@ static const char* filename_ext(const char* filename);
  * @return int  Returns 0 on success
  */
 int main(int argc, char** args) {
-  if (argc != _REMBED_EXPECTED_ARGS_) {
-    fprintf(stderr, "rembed error: Expected 1 argument containing rembed script file (.rs), found %d arguments instead.\n", argc-1);
+  if (argc != _REMBED_EXPECTED_ARGUMENTS_) {
+    fprintf(stderr, "rembed error: Expected {dest} {resource}. Creates {dest}.c from {resource}\n");
     exit(EXIT_FAILURE);
   }
 
-  /**
-   * @brief Grab the filepath from the arguments list and verify its file extension
-   * 
-   */
-  const char* rs_filepath = args[_REMBED_RES_SCRIPT_INDEX_];
-  if (strcmp(filename_ext(rs_filepath), ".rs") != 0) {
-    fprintf(stderr, "rembed error: Invalid rembed script file given. File %s does not contain .rs extension.\n", rs_filepath);
-    exit(EXIT_FAILURE);
+  char* dest = args[1];
+  char* resource = args[2];
+
+  FILE* resourceFile = fopen(resource, "rb");
+  if (resourceFile) {
+    FILE* destFile = fopen(dest, "wb");
+    if (destFile) {
+      char* destResourceName = prepareResourceName(dest);
+
+      fprintf(destFile, "#include <stdlib.h>\n\n");
+      fprintf(destFile, "const void resource_%s[] = {\n", destResourceName);
+
+      size_t n = 0;
+      
+
+      fclose(destFile);
+    }
+    else {
+      fprintf(stderr, "rembed error: Failed to create destination file %s.\n", dest);
+      exit(EXIT_FAILURE);
+    }
+    fclose(resourceFile);
+  }
+  else {
+    fprintf(stderr, "rembed error: Failed to open resource file %s.\n", resource);
   }
 
-  /**
-   * @brief Open the rembed script file
-   * 
-   */
-  FILE* rs_file = fopen(rs_filepath, "r");
-  if (!rs_file) {
-    fprintf(stderr, "rembed error: Cannot locate rembed script %s on disk.\n", rs_filepath);
-    exit(EXIT_FAILURE);
-  }
-
-  
-
-  fclose(rs_file);
-  
   return 0; // Indicate success
-}
-
-/**
- * @brief Gets the extension of a filepath
- * 
- * @param filename  The path to the file
- * @return const char* The file's extension
- */
-static const char* filename_ext(const char* filename) {
-  const char* dot = strrchr(filename, '.');
-  if (!dot || dot == filename) return "";
-  return dot;
 }
