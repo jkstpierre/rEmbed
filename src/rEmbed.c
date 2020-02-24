@@ -125,36 +125,31 @@ int main(int argc, char** args) {
 
   FILE* resource = fopen(resourcePath, "rb");
   if (resource) {
-    fseek(resource, 0, SEEK_END);
-    printf("%d\n", ftell);
-    rewind(resource);
-
     if (makeDirectories(resourceDest)) {
       FILE* embed = fopen(resourceDest, "wb");
       if (embed) {
         char resourceName[256];
         createResourceName(resourceName, resourcePath);
 
-        fprintf(embed, "/* Resource %s */\n", resourceName);
-        fprintf(embed, "#include<stdlib.h>\n\n");
+        fprintf(embed, "/* Resource %s */\n\n", resourceName);
+        fprintf(embed, "#include <stdlib.h>\n\n");
         
-        fprintf(embed, "const unsigned char rEmbedResource_%s[] = {\n", resourceName);
+        fprintf(embed, "const unsigned char rEmbedResource_%s[] = {\n\t", resourceName);
 
-        char ch;
         size_t line = 0;
-        while ((ch == fgetc(resource) != EOF)) {
-          fprintf(embed, "0x%02x, ", (unsigned char)ch);
+        while (!feof(resource)) {
+          char c = fgetc(resource);
+          fprintf(embed, "0x%02x, ", (unsigned char)c);
           if (++line == 10) {
             line = 0;
-            fprintf(embed, "\n");
+            fprintf(embed, "\n\t");
           }
         }
 
         if (line == 0)
           fprintf(embed, "};\n");
         else
-          fprintf(embed, "\n};\n");
-
+          fprintf(embed, "\n};\n\n");
         fprintf(embed, "const size_t rEmbedResource_%s_size = sizeof(rEmbedResource_%s);", resourceName, resourceName);
 
         fclose(embed);
