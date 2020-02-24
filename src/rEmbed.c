@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <errno.h>
 #include <assert.h>
 
@@ -25,15 +26,15 @@
 #if defined unix || defined __unix__ || defined __unix
 #include <sys/stat.h>
 #include <libgen.h>
-#define mkdir(dir) mkdir(dir, S_IRWXU)
-#define basename(path) basename(path)
+#define makeDirectory(dir) mkdir(dir, S_IRWXU)
+#define getFileName(path) basename(path)
 #define DIR_SEPARATOR '/'
 #endif
 
 #if defined _WIN32 || defined _WIN64
 #include <Windows.h>
-#define mkdir(dir) _mkdir(dir)
-#define basename(path) ([]() {  \
+#define makeDirectory(dir) _mkdir(dir)
+#define getFileName(path) ([]() {  \
   const char* result = NULL;  \
   _splitpath(path, NULL, NULL, &result, NULL);  \
   return result;
@@ -74,7 +75,7 @@ int makeDirectories(const char* path) {
     /* Temporarily truncate */
     *p = '\0';
 
-    if (mkdir(_path) != 0) {
+    if (makeDirectory(_path) != 0) {
       if (errno != EEXIST)
           return _REMBED_FALSE_; 
     }
@@ -92,12 +93,19 @@ int makeDirectories(const char* path) {
  * @param rName     The name to save the resource as, must already be allocated
  * @param rPath     The path to the resource on disk
  */
-void createResourceName(char* rName, const char* rPath) {
-  const char* fileName = basename(rPath);
+void createResourceName(char* rName, char* rPath) {
+  assert(rName && rPath && *rPath);
 
-  
+  const char* fileName = getFileName(rPath);
+
+  // Iterate through each character of fileName and set rName to the uppercase version of it
+  for (int i = 0; i < strlen(fileName) + 1; i++) {
+    rName[i] = toupper(fileName[i]);
+
+    if (rName[i] == '.' || rName[i] == '-')
+      rName[i] = '_';
+  }
 }
-
 
 /**
  * @brief Main function serves as program entry point
@@ -112,16 +120,42 @@ int main(int argc, char** args) {
     return EXIT_FAILURE;
   }
 
-  const char* resourcePath = args[_REMBED_ARGS_SOURCE_];
-  const char* resourceDest = args[_REMBED_ARGS_DEST_];
+  char* resourcePath = args[_REMBED_ARGS_SOURCE_];
+  char* resourceDest = args[_REMBED_ARGS_DEST_];
 
   FILE* resource = fopen(resourcePath, "rb");
   if (resource) {
+    fseek(resource, 0, SEEK_END);
+    printf("%d\n", ftell);
+    rewind(resource);
+
     if (makeDirectories(resourceDest)) {
       FILE* embed = fopen(resourceDest, "wb");
       if (embed) {
-        fprintf(embed, "#include<stdlib.h>\n");
+        char resourceName[256];
+        createResourceName(resourceName, resourcePath);
+
+        fprintf(embed, "/* Resource %s */\n", resourceName);
+        fprintf(embed, "#include<stdlib.h>\n\n");
         
+        fprintf(embed, "const unsigned char rEmbedResource_%s[] = {\n", resourceName);
+
+        char ch;
+        size_t line = 0;
+        while ((ch == fgetc(resource) != EOF)) {
+          fprintf(embed, "0x%02x, ", (unsigned char)ch);
+          if (++line == 10) {
+            line = 0;
+            fprintf(embed, "\n");
+          }
+        }
+
+        if (line == 0)
+          fprintf(embed, "};\n");
+        else
+          fprintf(embed, "\n};\n");
+
+        fprintf(embed, "const size_t rEmbedResource_%s_size = sizeof(rEmbedResource_%s);", resourceName, resourceName);
 
         fclose(embed);
       }
